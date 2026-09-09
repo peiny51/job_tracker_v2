@@ -43,6 +43,3 @@ npm install
 npm run dev
 ```
 
-## Author
-
-Daniel Pei
