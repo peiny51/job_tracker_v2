@@ -1,0 +1,108 @@
+.container {
+  max-width: 1200px;
+  margin: 40px auto;
+  padding: 0 20px;
+}
+
+.search-bar {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.search-bar input {
+  flex: 1;
+  padding: 10px;
+}
+
+.search-bar button {
+  padding: 10px 20px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th,
+td {
+  padding: 12px;
+  border-bottom: 1px solid #ddd;
+  text-align: left;
+}
+
+tbody tr {
+  cursor: pointer;
+}
+
+tbody tr:hover {
+  background: #f5f5f5;
+}
+
+.pagination {
+  margin-top: 20px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 16px;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+
+  background: rgba(0, 0, 0, 0.45);
+
+  display: flex;
+  justify-content: center;
+  align-items: center;
+
+  padding: 20px;
+}
+
+.modal {
+  position: relative;
+
+  width: min(850px, 95vw);
+  max-height: 85vh;
+
+  overflow-y: auto;
+
+  background: white;
+
+  padding: 30px;
+
+  border-radius: 8px;
+}
+
+.modal-close {
+  position: absolute;
+
+  top: 12px;
+  right: 16px;
+
+  border: none;
+  background: none;
+
+  font-size: 28px;
+  cursor: pointer;
+}
+
+.skill-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.skill-tag {
+  padding: 6px 10px;
+
+  background: #f0f0f0;
+
+  border-radius: 6px;
+}
+
+.job-description {
+  white-space: pre-wrap;
+  line-height: 1.6;
+}
