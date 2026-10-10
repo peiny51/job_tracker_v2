@@ -11,39 +11,62 @@ public static class ApplicationEndpoints
     {
         // ======================================================
         // GET /api/applications
-        // 获取 Job 列表 + 搜索 + 分页
+        // Job list + search + status filter + status counts + pagination
         // ======================================================
 
         app.MapGet("/api/applications", async (
             AppDbContext db,
             string? keyword = null,
+            string? status = null,
             int page = 1,
             int pageSize = 10) =>
         {
-            if (page <= 0)
-            {
-                page = 1;
-            }
+            if (page <= 0) page = 1;
+            if (pageSize <= 0) pageSize = 10;
 
-            if (pageSize <= 0)
-            {
-                pageSize = 10;
-            }
-
-            var query = db.JobApplications.AsQueryable();
+            // baseQuery contains the keyword search but not the selected status.
+            // This lets status counts show all categories for the current search.
+            var baseQuery = db.JobApplications.AsQueryable();
 
             if (!string.IsNullOrWhiteSpace(keyword))
             {
-                query = query.Where(job =>
+                baseQuery = baseQuery.Where(job =>
                     EF.Functions.ILike(job.Company, $"%{keyword}%") ||
                     EF.Functions.ILike(job.JobTitle, $"%{keyword}%") ||
                     EF.Functions.ILike(job.RawJobDescription, $"%{keyword}%") ||
-                    (job.RawSkillTags != null &&
-                     EF.Functions.ILike(job.RawSkillTags, $"%{keyword}%")) ||
+                    (job.RawSkillTags != null && EF.Functions.ILike(job.RawSkillTags, $"%{keyword}%")) ||
                     EF.Functions.ILike(job.Status, $"%{keyword}%")
                 );
             }
 
+            // Count every status before applying the selected status filter.
+            var statusCountRows = await baseQuery
+                .GroupBy(job => job.Status)
+                .Select(group => new
+                {
+                    Status = group.Key,
+                    Count = group.Count()
+                })
+                .ToListAsync();
+
+            int CountStatus(string targetStatus)
+            {
+                return statusCountRows
+                    .FirstOrDefault(item => string.Equals(item.Status, targetStatus, StringComparison.OrdinalIgnoreCase))
+                    ?.Count ?? 0;
+            }
+
+            var allCount = statusCountRows.Sum(item => item.Count);
+
+            var query = baseQuery;
+
+            // "All" means no status filter. Mobile can either send All or omit status completely.
+            if (!string.IsNullOrWhiteSpace(status) && !status.Equals("All", StringComparison.OrdinalIgnoreCase))
+            {
+                query = query.Where(job => job.Status == status);
+            }
+
+            // This count belongs to the currently filtered list and is used for pagination.
             var totalCount = await query.CountAsync();
 
             var jobs = await query
@@ -76,15 +99,8 @@ public static class ApplicationEndpoints
                 job.CreatedAt,
 
                 Preview = !string.IsNullOrWhiteSpace(keyword)
-                    ? BuildKeywordPreview(
-                        job.RawJobDescription,
-                        job.RawSkillTags,
-                        keyword
-                    )
-                    : BuildDefaultPreview(
-                        job.Skills,
-                        job.RawJobDescription
-                    )
+                    ? BuildKeywordPreview(job.RawJobDescription, job.RawSkillTags, keyword!)
+                    : BuildDefaultPreview(job.Skills, job.RawJobDescription)
             });
 
             return Results.Ok(new
@@ -92,10 +108,17 @@ public static class ApplicationEndpoints
                 Page = page,
                 PageSize = pageSize,
                 TotalCount = totalCount,
+                TotalPages = (int)Math.Ceiling((double)totalCount / pageSize),
 
-                TotalPages = (int)Math.Ceiling(
-                    (double)totalCount / pageSize
-                ),
+                StatusCounts = new
+                {
+                    All = allCount,
+                    Watched = CountStatus("Watched"),
+                    Applied = CountStatus("Applied"),
+                    Interview = CountStatus("Interview"),
+                    Offer = CountStatus("Offer"),
+                    Rejected = CountStatus("Rejected")
+                },
 
                 Items = results
             });
@@ -104,7 +127,7 @@ public static class ApplicationEndpoints
 
         // ======================================================
         // GET /api/applications/{id}
-        // 点击列表后查看完整 Job
+        // View one complete application
         // ======================================================
 
         app.MapGet("/api/applications/{id}", async (
@@ -135,10 +158,7 @@ public static class ApplicationEndpoints
                 })
                 .FirstOrDefaultAsync();
 
-            if (job == null)
-            {
-                return Results.NotFound();
-            }
+            if (job == null) return Results.NotFound();
 
             return Results.Ok(job);
         });
@@ -146,7 +166,7 @@ public static class ApplicationEndpoints
 
         // ======================================================
         // POST /api/applications
-        // 创建 Job + 自动处理 skill tags
+        // Create an application and process its skill tags
         // ======================================================
 
         app.MapPost("/api/applications", async (
@@ -154,23 +174,17 @@ public static class ApplicationEndpoints
             AppDbContext db,
             SkillService skillService) =>
         {
-            // 先保存 Job，这样数据库会生成 Id
+            // Save first so PostgreSQL generates the application ID.
             db.JobApplications.Add(newApplication);
             await db.SaveChangesAsync();
 
-            // 如果 Job Post 提供 skill tags
             if (!string.IsNullOrWhiteSpace(newApplication.RawSkillTags))
             {
-                var skillTags = newApplication.RawSkillTags
-                    .Split(
-                        '\n',
-                        StringSplitOptions.RemoveEmptyEntries
-                    );
+                var skillTags = newApplication.RawSkillTags.Split('\n', StringSplitOptions.RemoveEmptyEntries);
 
                 foreach (var skillTag in skillTags)
                 {
-                    var skill = await skillService
-                        .GetOrCreateSkillAsync(skillTag);
+                    var skill = await skillService.GetOrCreateSkillAsync(skillTag);
 
                     var jobSkill = new JobApplicationSkill
                     {
@@ -208,7 +222,7 @@ public static class ApplicationEndpoints
 
         // ======================================================
         // PUT /api/applications/{id}
-        // 完整修改 Job（备用）
+        // Full update endpoint kept as a backend capability
         // ======================================================
 
         app.MapPut("/api/applications/{id}", async (
@@ -217,13 +231,9 @@ public static class ApplicationEndpoints
             AppDbContext db,
             SkillService skillService) =>
         {
-            var job = await db.JobApplications
-                .FirstOrDefaultAsync(job => job.Id == id);
+            var job = await db.JobApplications.FirstOrDefaultAsync(job => job.Id == id);
 
-            if (job == null)
-            {
-                return Results.NotFound();
-            }
+            if (job == null) return Results.NotFound();
 
             job.Company = updatedJob.Company;
             job.JobTitle = updatedJob.JobTitle;
@@ -232,28 +242,19 @@ public static class ApplicationEndpoints
             job.RawSkillTags = updatedJob.RawSkillTags;
             job.Status = updatedJob.Status;
 
-            // 删除旧的 Job-Skill relations
             var oldJobSkills = await db.JobApplicationSkills
-                .Where(jobSkill =>
-                    jobSkill.JobApplicationId == id
-                )
+                .Where(jobSkill => jobSkill.JobApplicationId == id)
                 .ToListAsync();
 
             db.JobApplicationSkills.RemoveRange(oldJobSkills);
 
-            // 根据新的 tags 重建
             if (!string.IsNullOrWhiteSpace(updatedJob.RawSkillTags))
             {
-                var skillTags = updatedJob.RawSkillTags
-                    .Split(
-                        '\n',
-                        StringSplitOptions.RemoveEmptyEntries
-                    );
+                var skillTags = updatedJob.RawSkillTags.Split('\n', StringSplitOptions.RemoveEmptyEntries);
 
                 foreach (var skillTag in skillTags)
                 {
-                    var skill = await skillService
-                        .GetOrCreateSkillAsync(skillTag);
+                    var skill = await skillService.GetOrCreateSkillAsync(skillTag);
 
                     var jobSkill = new JobApplicationSkill
                     {
@@ -282,7 +283,7 @@ public static class ApplicationEndpoints
 
         // ======================================================
         // PATCH /api/applications/{id}/status
-        // 实际最常用：只修改申请状态
+        // Update only the application status
         // ======================================================
 
         app.MapPatch("/api/applications/{id}/status", async (
@@ -290,16 +291,11 @@ public static class ApplicationEndpoints
             string status,
             AppDbContext db) =>
         {
-            var job = await db.JobApplications
-                .FirstOrDefaultAsync(job => job.Id == id);
+            var job = await db.JobApplications.FirstOrDefaultAsync(job => job.Id == id);
 
-            if (job == null)
-            {
-                return Results.NotFound();
-            }
+            if (job == null) return Results.NotFound();
 
             job.Status = status;
-
             await db.SaveChangesAsync();
 
             return Results.Ok(new
@@ -318,13 +314,9 @@ public static class ApplicationEndpoints
             int id,
             AppDbContext db) =>
         {
-            var job = await db.JobApplications
-                .FirstOrDefaultAsync(job => job.Id == id);
+            var job = await db.JobApplications.FirstOrDefaultAsync(job => job.Id == id);
 
-            if (job == null)
-            {
-                return Results.NotFound();
-            }
+            if (job == null) return Results.NotFound();
 
             db.JobApplications.Remove(job);
             await db.SaveChangesAsync();
@@ -335,7 +327,7 @@ public static class ApplicationEndpoints
 
         // ======================================================
         // GET /api/applications/{jobId}/match?userId=1
-        // 比较 Job skills 和 User skills
+        // Compare application requirements with user skills
         // ======================================================
 
         app.MapGet("/api/applications/{jobId}/match", async (
@@ -343,18 +335,12 @@ public static class ApplicationEndpoints
             int userId,
             AppDbContext db) =>
         {
-            var job = await db.JobApplications
-                .FirstOrDefaultAsync(job => job.Id == jobId);
+            var job = await db.JobApplications.FirstOrDefaultAsync(job => job.Id == jobId);
 
-            if (job == null)
-            {
-                return Results.NotFound("Job not found.");
-            }
+            if (job == null) return Results.NotFound("Job not found.");
 
             var jobSkills = await db.JobApplicationSkills
-                .Where(jobSkill =>
-                    jobSkill.JobApplicationId == jobId
-                )
+                .Where(jobSkill => jobSkill.JobApplicationId == jobId)
                 .Select(jobSkill => new
                 {
                     jobSkill.SkillId,
@@ -363,35 +349,23 @@ public static class ApplicationEndpoints
                 .ToListAsync();
 
             var userSkillIds = await db.UserSkills
-                .Where(userSkill =>
-                    userSkill.UserId == userId
-                )
-                .Select(userSkill =>
-                    userSkill.SkillId
-                )
+                .Where(userSkill => userSkill.UserId == userId)
+                .Select(userSkill => userSkill.SkillId)
                 .ToListAsync();
 
             var matchedSkills = jobSkills
-                .Where(jobSkill =>
-                    userSkillIds.Contains(jobSkill.SkillId)
-                )
+                .Where(jobSkill => userSkillIds.Contains(jobSkill.SkillId))
                 .Select(jobSkill => jobSkill.Name)
                 .ToList();
 
             var missingSkills = jobSkills
-                .Where(jobSkill =>
-                    !userSkillIds.Contains(jobSkill.SkillId)
-                )
+                .Where(jobSkill => !userSkillIds.Contains(jobSkill.SkillId))
                 .Select(jobSkill => jobSkill.Name)
                 .ToList();
 
             var matchPercentage = jobSkills.Count == 0
                 ? 0
-                : Math.Round(
-                    (double)matchedSkills.Count /
-                    jobSkills.Count * 100,
-                    1
-                );
+                : Math.Round((double)matchedSkills.Count / jobSkills.Count * 100, 1);
 
             return Results.Ok(new
             {
@@ -407,84 +381,44 @@ public static class ApplicationEndpoints
 
 
     // =========================================================
-    // 默认列表 Preview
-    // 没有 keyword 时显示前四个 skills
+    // Default preview: show up to four skills, otherwise JD text
     // =========================================================
 
-    private static string BuildDefaultPreview(
-        List<string> skills,
-        string rawJobDescription)
+    private static string BuildDefaultPreview(List<string> skills, string rawJobDescription)
     {
-        if (skills.Count > 0)
-        {
-            return string.Join(
-                " · ",
-                skills.Take(4)
-            );
-        }
+        if (skills.Count > 0) return string.Join(" · ", skills.Take(4));
 
-        if (rawJobDescription.Length <= 120)
-        {
-            return rawJobDescription;
-        }
+        if (rawJobDescription.Length <= 120) return rawJobDescription;
 
         return rawJobDescription[..120] + "...";
     }
 
 
     // =========================================================
-    // 搜索时显示 keyword 附近文字
+    // Search preview: show text around the matching keyword
     // =========================================================
 
-    private static string BuildKeywordPreview(
-        string rawJobDescription,
-        string? rawSkillTags,
-        string keyword)
+    private static string BuildKeywordPreview(string rawJobDescription, string? rawSkillTags, string keyword)
     {
         var text = rawJobDescription;
 
-        var index = text.IndexOf(
-            keyword,
-            StringComparison.OrdinalIgnoreCase
-        );
+        var index = text.IndexOf(keyword, StringComparison.OrdinalIgnoreCase);
 
-        // JD 没找到时再尝试 RawSkillTags
+        // If the JD does not contain the keyword, try the stored skill tags.
         if (index == -1 && rawSkillTags != null)
         {
             text = rawSkillTags;
-
-            index = text.IndexOf(
-                keyword,
-                StringComparison.OrdinalIgnoreCase
-            );
+            index = text.IndexOf(keyword, StringComparison.OrdinalIgnoreCase);
         }
 
-        if (index == -1)
-        {
-            return "";
-        }
+        if (index == -1) return "";
 
         var start = Math.Max(0, index - 50);
+        var length = Math.Min(120, text.Length - start);
+        var preview = text.Substring(start, length);
 
-        var length = Math.Min(
-            120,
-            text.Length - start
-        );
-
-        var preview = text.Substring(
-            start,
-            length
-        );
-
-        if (start > 0)
-        {
-            preview = "..." + preview;
-        }
-
-        if (start + length < text.Length)
-        {
-            preview += "...";
-        }
+        if (start > 0) preview = "..." + preview;
+        if (start + length < text.Length) preview += "...";
 
         return preview;
     }

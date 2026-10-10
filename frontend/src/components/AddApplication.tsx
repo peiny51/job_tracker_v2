@@ -1,6 +1,6 @@
 import {useState} from "react";
 
-import {createJob, analyzeJobPost} from "../api/jobs";
+import {createJob, analyzeJobPost} from "@job-tracker/shared";
 
 interface AddApplicationProps {
     userId : number;
@@ -28,8 +28,7 @@ function AddApplication({userId, onClose, onCreated} : AddApplicationProps) {
     const [error,
         setError] = useState("");
 
-    const [location,
-        setLocation] = useState("");
+    const [,setLocation] = useState("");
 
     // 当前是不是正在等 Gemini
     const [analyzing,

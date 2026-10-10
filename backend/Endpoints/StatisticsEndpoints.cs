@@ -11,24 +11,21 @@ public static class StatisticsEndpoints
             int userId,
             AppDbContext db) =>
         {
-            // 先检查 User 是否存在
-            var userExists = await db.AppUsers
-                .AnyAsync(user => user.Id == userId);
+            // Make sure the requested user exists before calculating statistics.
+            var userExists = await db.AppUsers.AnyAsync(user => user.Id == userId);
 
             if (!userExists)
             {
                 return Results.NotFound("User not found.");
             }
 
-            // 找出这个用户已经拥有的 SkillId, userSkillIds = [1, 2, 6]
+            // Get the skills this user already has so they can be excluded from the gap list.
             var userSkillIds = await db.UserSkills
                 .Where(userSkill => userSkill.UserId == userId)
                 .Select(userSkill => userSkill.SkillId)
                 .ToListAsync();
 
-            // 统计这个用户所有 JobApplication 中，
-            // 他目前还没有的 skill 出现了多少次
-            // group by: 把相同的skill合并， 计算这个skill一共出现了多少次
+            // Count how many of this user's saved applications require each missing skill.
             var missingSkills = await db.JobApplicationSkills
                 .Where(jobSkill =>
                     jobSkill.JobApplication.UserId == userId &&
@@ -53,6 +50,61 @@ public static class StatisticsEndpoints
             {
                 UserId = userId,
                 MissingSkills = missingSkills
+            });
+        });
+
+
+        // Return the specific applications that require one skill.
+        // This supports drilling down from "Redis - 3 jobs" to those 3 applications.
+        app.MapGet("/api/statistics/skill-gaps/{skillId}/applications", async (
+            int skillId,
+            int userId,
+            AppDbContext db) =>
+        {
+            var userExists = await db.AppUsers.AnyAsync(user => user.Id == userId);
+
+            if (!userExists)
+            {
+                return Results.NotFound("User not found.");
+            }
+
+            var skill = await db.Skills
+                .Where(skill => skill.Id == skillId)
+                .Select(skill => new
+                {
+                    skill.Id,
+                    skill.Name
+                })
+                .FirstOrDefaultAsync();
+
+            if (skill == null)
+            {
+                return Results.NotFound("Skill not found.");
+            }
+
+            // Only return applications belonging to this user that require the selected skill.
+            var applications = await db.JobApplicationSkills
+                .Where(jobSkill =>
+                    jobSkill.SkillId == skillId &&
+                    jobSkill.JobApplication.UserId == userId
+                )
+                .OrderByDescending(jobSkill => jobSkill.JobApplication.CreatedAt)
+                .Select(jobSkill => new
+                {
+                    jobSkill.JobApplication.Id,
+                    jobSkill.JobApplication.Company,
+                    jobSkill.JobApplication.JobTitle,
+                    jobSkill.JobApplication.Status,
+                    jobSkill.JobApplication.CreatedAt
+                })
+                .ToListAsync();
+
+            return Results.Ok(new
+            {
+                SkillId = skill.Id,
+                SkillName = skill.Name,
+                JobCount = applications.Count,
+                Applications = applications
             });
         });
     }

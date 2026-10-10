@@ -1,8 +1,8 @@
 import {useState} from "react";
-import {updateJobStatus, deleteJob} from "../api/jobs";
+import {updateJobStatus, deleteJob} from "@job-tracker/shared";
 
 import type {JobDetail as JobDetailType, JobMatch}
-from "../types/job";
+from "@job-tracker/shared";
 
 // 这个 component 需要父 component 传三个东西 只是为了验证传入数据是否符合这一的类型
 interface JobDetailProps {

@@ -1,11 +1,11 @@
 import type { Skill } from "../types/skill";
 
-const API_URL = "http://localhost:5270";
+import { getApiBaseUrl } from "./client";
 
 
 export async function getSkills(): Promise<Skill[]> {
   const response = await fetch(
-    `${API_URL}/api/skills`
+    `${getApiBaseUrl()}/api/skills`
   );
 
   if (!response.ok) {
@@ -17,10 +17,10 @@ export async function getSkills(): Promise<Skill[]> {
 
 
 export async function getUserSkills(
-  userId: number
+  userId = 1
 ): Promise<Skill[]> {
   const response = await fetch(
-    `${API_URL}/api/users/${userId}/skills`
+    `${getApiBaseUrl()}/api/users/${userId}/skills`
   );
 
   if (!response.ok) {
@@ -32,34 +32,36 @@ export async function getUserSkills(
 
 
 export async function addUserSkill(
-  userId: number,
-  skillId: number
+  skillId: number,
+  userId = 1
 ): Promise<void> {
+  // Authentication is not implemented yet, so the existing demo user ID
+  // remains part of the API contract for both clients.
   const response = await fetch(
-    `${API_URL}/api/users/${userId}/skills/${skillId}`,
+    `${getApiBaseUrl()}/api/users/${userId}/skills/${skillId}`,
     {
       method: "POST"
     }
   );
 
   if (!response.ok) {
-    throw new Error("Failed to add skill");
+    throw new Error("Failed to add user skill");
   }
 }
 
 
 export async function removeUserSkill(
-  userId: number,
-  skillId: number
+  skillId: number,
+  userId = 1
 ): Promise<void> {
   const response = await fetch(
-    `${API_URL}/api/users/${userId}/skills/${skillId}`,
+    `${getApiBaseUrl()}/api/users/${userId}/skills/${skillId}`,
     {
       method: "DELETE"
     }
   );
 
   if (!response.ok) {
-    throw new Error("Failed to remove skill");
+    throw new Error("Failed to remove user skill");
   }
 }

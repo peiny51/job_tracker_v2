@@ -1,9 +1,8 @@
 import {useEffect, useState} from "react";
 
-import {addUserSkill, getSkills, getUserSkills, removeUserSkill} from "../api/skills";
+import {addUserSkill, getSkills, getUserSkills, removeUserSkill} from "@job-tracker/shared";
 
-import type {Skill}
-from "../types/skill";
+import type {Skill} from "@job-tracker/shared";
 
 interface MySkillsProps {
     userId : number;

@@ -1,0 +1,9 @@
+{
+  "name": "job-tracker-v2",
+  "private": true,
+  "workspaces": [
+    "frontend",
+    "mobile",
+    "packages/*"
+  ]
+}

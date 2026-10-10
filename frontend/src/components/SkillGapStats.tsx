@@ -1,9 +1,8 @@
 import {useEffect, useState} from "react";
 
-import {getSkillGaps} from "../api/statistics";
+import {getSkillGaps} from "@job-tracker/shared";
 
-import type {MissingSkill}
-from "../types/statistics";
+import type {MissingSkill} from "@job-tracker/shared";
 
 interface SkillGapStatsProps {
     userId : number;

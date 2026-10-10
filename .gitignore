@@ -1,2 +1,44 @@
-/.dist
-/.vscode
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build output
+dist/
+build/
+.next/
+.expo/
+.expo-shared/
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# .NET
+bin/
+obj/
+
+# IDE / editor
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Local database / temp files
+*.db
+*.sqlite
+*.sqlite3
+
+# Coverage
+coverage/
+
+# Misc
+.tmp/
+temp/

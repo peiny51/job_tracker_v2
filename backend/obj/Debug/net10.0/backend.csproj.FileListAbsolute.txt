@@ -275,3 +275,4 @@
 /Users/peiningyuan/Desktop/work/projects/interview projects/job_tracker_v2/backend/obj/Debug/net10.0/backend.pdb
 /Users/peiningyuan/Desktop/work/projects/interview projects/job_tracker_v2/backend/obj/Debug/net10.0/backend.genruntimeconfig.cache
 /Users/peiningyuan/Desktop/work/projects/interview projects/job_tracker_v2/backend/obj/Debug/net10.0/ref/backend.dll
+/Users/peiningyuan/Desktop/work/projects/interview projects/job_tracker_v2/backend/obj/Debug/net10.0/backend.sourcelink.json

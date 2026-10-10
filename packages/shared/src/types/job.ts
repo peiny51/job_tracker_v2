@@ -7,11 +7,21 @@ export interface JobListItem {
   preview: string;
 }
 
+export interface JobStatusCounts {
+  all: number;
+  watched: number;
+  applied: number;
+  interview: number;
+  offer: number;
+  rejected: number;
+}
+
 export interface JobListResponse {
   page: number;
   pageSize: number;
   totalCount: number;
   totalPages: number;
+  statusCounts: JobStatusCounts;
   items: JobListItem[];
 }
 
@@ -50,7 +60,6 @@ export interface CreateJobRequest {
   rawJobDescription: string;
   status: string;
 }
-
 
 export interface JobExtractionResult {
   company: string | null;
