@@ -93,7 +93,7 @@ Install the following before running the project:
 ### 1. Clone the repository
 
 ```bash
-git clone <your-repository-url>
+git clone 
 cd job_tracker_v2
 ```
 
