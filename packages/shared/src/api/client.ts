@@ -1,4 +1,4 @@
-let apiBaseUrl = "";
+let apiBaseUrl: string | undefined;
 
 
 /**
@@ -14,7 +14,7 @@ export function configureApi(baseUrl: string) {
 
 
 export function getApiBaseUrl() {
-  if (!apiBaseUrl) {
+  if (apiBaseUrl === undefined) {
     throw new Error(
       "API is not configured. Call configureApi() before using API functions."
     );

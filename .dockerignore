@@ -1,0 +1,34 @@
+
+# Git metadata
+.git
+.gitignore
+
+# Node.js dependencies and build output
+**/node_modules
+**/dist
+**/build
+**/.expo
+**/.vite
+
+# .NET build output
+**/bin
+**/obj
+
+# Local environment variables and secrets
+**/.env
+**/.env.*
+**/appsettings.Development.json
+**/secrets.json
+.env.docker
+
+# IDE and operating system files
+.vscode
+.idea
+.DS_Store
+**/*.user
+**/*.suo
+
+# Logs and temporary files
+**/*.log
+**/coverage
+**/TestResults

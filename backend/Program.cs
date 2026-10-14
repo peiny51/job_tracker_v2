@@ -1,22 +1,20 @@
+
 using backend.Data;
 using backend.Endpoints;
 using backend.Services;
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json.Serialization;
 
-
-// 创建 ASP.NET Core 应用
 var builder = WebApplication.CreateBuilder(args);
 
-
-// 防止 EF Core navigation properties
-// 在 JSON serialization 时形成 object cycle
+// Prevent circular references when serializing EF Core entities.
 builder.Services.ConfigureHttpJsonOptions(options =>
 {
     options.SerializerOptions.ReferenceHandler =
         ReferenceHandler.IgnoreCycles;
 });
 
+// Allow the local Vite development server to access the API.
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("Frontend", policy =>
@@ -28,32 +26,33 @@ builder.Services.AddCors(options =>
     });
 });
 
-// 注册 AppDbContext
+// Connect EF Core to PostgreSQL using the configured connection string.
 builder.Services.AddDbContext<AppDbContext>(options =>
 {
     options.UseNpgsql(
-        builder.Configuration.GetConnectionString(
-            "DefaultConnection"
-        )
+        builder.Configuration.GetConnectionString("DefaultConnection")
     );
 });
 
-
-// 注册业务 Service
 builder.Services.AddScoped<SkillService>();
 builder.Services.AddHttpClient<JobExtractionService>();
 
-
 var app = builder.Build();
+
 app.UseCors("Frontend");
 
+// Serve the React build output from wwwroot.
+app.UseDefaultFiles();
+app.UseStaticFiles();
 
-// 注册各组 API
+// Register API endpoints before the React fallback.
 app.MapApplicationEndpoints();
 app.MapUserSkillEndpoints();
 app.MapSkillEndpoints();
 app.MapStatisticsEndpoints();
 app.MapJobExtractionEndpoints();
 
-// 启动服务器
+// Let React handle frontend routes, but not missing API routes.
+app.MapFallbackToFile("index.html");
+
 app.Run();
